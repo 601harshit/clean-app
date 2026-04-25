@@ -10,7 +10,7 @@ After viewing a food's score, show users up to 5 healthier alternatives in the s
 
 ## Scope
 - Alternatives section at the bottom of `/food/[barcode]`
-- Alternatives fetched from Open Food Facts (same category, higher score)
+- Alternatives fetched from Open Food Facts (same category, score ≥ 60 and strictly higher than current product)
 - Amazon affiliate link for each alternative via Amazon PA API v5
 
 ## Out of Scope
@@ -20,7 +20,7 @@ After viewing a food's score, show users up to 5 healthier alternatives in the s
 ## Acceptance Criteria
 - [ ] Alternatives section shows up to 5 cards
 - [ ] Each card: product image, name, brand, health score badge, "Order on Amazon" button
-- [ ] All alternatives have a strictly higher score than the current product
+- [ ] All alternatives have a score ≥ 60 ("Good" or better) AND strictly higher than the current product's score
 - [ ] "Order on Amazon" link opens in a new tab with affiliate tag
 - [ ] Clicking product name/image navigates to `/food/[barcode]` for that alternative
 - [ ] If Amazon PA API is unavailable, alternative cards still show (without the Amazon button); no error crash
@@ -32,7 +32,7 @@ After viewing a food's score, show users up to 5 healthier alternatives in the s
 1. Get the product's Open Food Facts category (use `pnns_groups_1` or `categories_tags[0]`)
 2. Search Open Food Facts for products in that category with `nutriscore_grade` better than current
 3. Compute score for each candidate (using user's conditions)
-4. Keep only those with `score > current_product_score`
+4. Keep only those with `score >= 60` (i.e. "Good" or better) AND `score > current_product_score`
 5. Sort by score descending, take top 5
 6. For each, call Amazon PA API `SearchItems` with the product name → get first result's URL + affiliate tag
 
