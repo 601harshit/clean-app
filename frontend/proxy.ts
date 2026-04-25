@@ -3,7 +3,18 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PROTECTED_PREFIXES = ["/profile", "/history"];
 
-export async function middleware(request: NextRequest) {
+/**
+ * Proxy (formerly middleware in Next.js <16) — runs before every protected route.
+ *
+ * Responsibilities:
+ *   1. Refresh the Supabase auth cookie on every request (so SSR pages always
+ *      see a fresh session).
+ *   2. Redirect unauthenticated users away from /profile and /history to /auth/login.
+ *
+ * IMPORTANT: We use `getUser()` (not `getSession()`) because `getSession()` only
+ * reads the cookie and is unsafe for authorization decisions per @supabase/ssr docs.
+ */
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
 
   const supabase = createServerClient(
