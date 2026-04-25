@@ -74,6 +74,7 @@
 4. Backend computes generic score for each result (no user conditions)
 5. Backend applies min_score and safe_for filters server-side
 6. Frontend renders product grid with filter chips
+7. User clicks a product → navigate to /food/[barcode] → Food Detail Flow
 ```
 
 ### Barcode Scan Flow
