@@ -53,7 +53,17 @@ All authenticated endpoints require: `Authorization: Bearer <supabase_jwt>`
 ### Food Endpoints
 
 #### `GET /api/food/search`
-Query params: `q: str`, `page: int = 1` (10 results per page)
+Query params:
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `q` | string | — | Search term (optional if `category` provided) |
+| `category` | string | — | OFF category slug for browsing |
+| `page` | int | 1 | Page number (20 per page) |
+| `min_score` | int | — | Minimum score threshold (e.g., 60, 80) |
+| `safe_for` | string[] | — | `diabetes`, `cholesterol`, `hypertension`, `obesity` |
+| `nutri_score` | string[] | — | `A`, `B`, `C`, `D`, `E` |
+| `nova_group` | int[] | — | `1`, `2`, `3`, `4` |
 
 Response `200`:
 ```json
@@ -64,7 +74,9 @@ Response `200`:
       "name": "Nutella",
       "brand": "Ferrero",
       "image_url": "https://images.openfoodfacts.org/...",
-      "nutri_score": "E"
+      "nutri_score": "E",
+      "nova_group": 4,
+      "score": 12
     }
   ],
   "total": 142,
@@ -72,7 +84,22 @@ Response `200`:
 }
 ```
 
-Response `422`: invalid query params
+Response `422`: invalid query params (must provide at least `q` or `category`)
+
+---
+
+#### `GET /api/food/categories`
+No params.
+
+Response `200`:
+```json
+{
+  "categories": [
+    { "slug": "snacks", "label": "Snacks", "icon": "🍿" },
+    { "slug": "dairy", "label": "Dairy", "icon": "🥛" }
+  ]
+}
+```
 
 ---
 
@@ -207,6 +234,17 @@ Clears all history for the user. Response `204`.
 - energy_kcal > 400/100g → -10
 - fiber > 3g/100g → +5 (satiety bonus)
 - proteins > 10g/100g → +5 (satiety bonus)
+
+### Condition Safety Thresholds (used for search filtering)
+
+These same thresholds define the "Safe for X" search filters — a product is safe for a condition if it does **not** exceed any threshold for that condition:
+
+| Condition | Safe if |
+|-----------|---------|
+| Diabetes | sugars ≤ 15g/100g AND carbohydrates ≤ 40g/100g |
+| Cholesterol | saturated_fat ≤ 5g/100g AND fat ≤ 20g/100g |
+| Hypertension | sodium ≤ 0.3g/100g |
+| Obesity | energy_kcal ≤ 400/100g |
 
 ### Step 4: Clamp
 `final_score = max(0, min(100, base + nova_penalty + sum(condition_modifiers)))`

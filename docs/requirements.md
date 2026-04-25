@@ -15,11 +15,20 @@
 - FR-2.2: Profile is saved to Supabase and persists across sessions
 - FR-2.3: User can update their conditions at any time
 
-### FR-3: Food Search
+### FR-3: Food Search, Browse & Filter
 - FR-3.1: User can type a food name or brand to search
-- FR-3.2: Results show: product name, brand, image thumbnail, and Nutri-Score grade
-- FR-3.3: Minimum 1 character triggers search; debounce 400ms
-- FR-3.4: Paginated results (10 per page)
+- FR-3.2: Results show: product name, brand, image thumbnail, health score, and Nutri-Score grade
+- FR-3.3: Minimum 2 characters triggers search; debounce 400ms
+- FR-3.4: Paginated results (20 per page)
+- FR-3.5: User can browse foods by category (e.g., Snacks, Dairy, Beverages, Cereals) without a search query
+- FR-3.6: User can filter results by score tier: All / Good+ (≥60) / Excellent (≥80)
+- FR-3.7: User can filter results by condition safety: "Safe for Diabetics", "Safe for Cholesterol", "Safe for Hypertension", "Safe for Obesity" — filters out products that trigger a penalty for that condition
+- FR-3.8: User can filter by Nutri-Score grade (multi-select: A, B, C, D, E)
+- FR-3.9: User can filter by NOVA group (multi-select: 1, 2, 3, 4)
+- FR-3.10: Multiple filters can be applied simultaneously
+- FR-3.11: Active filters are shown as removable chips above results
+- FR-3.12: Filter state is preserved in the URL query string (shareable/bookmarkable links)
+- FR-3.13: Result count is shown ("142 products")
 
 ### FR-4: Barcode Scan (web)
 - FR-4.1: User can activate camera to scan a product barcode
