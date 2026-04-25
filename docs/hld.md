@@ -49,7 +49,20 @@
 │  │  barcode + conditions│    (shared, no RLS) │
 │  │  → body impact text  │                    │
 │  └──────────────────────┘                    │
+│                                              │
+│  ┌──────────────────────┐                    │
+│  │  public.food_cache   │  ← OFF API cache   │
+│  │  barcode → JSONB     │    TTL: 7 days     │
+│  │  (product data)      │    (shared, no RLS) │
+│  └──────────────────────┘                    │
 └──────────────────────────────────────────────┘
+
+  FastAPI in-memory cache (TTLCache)
+  ┌──────────────────────────────────┐
+  │  search results                  │
+  │  query+filters → ProductSummary[]│
+  │  TTL: 1 hour                     │
+  └──────────────────────────────────┘
 ```
 
 ## Component Responsibilities
@@ -59,7 +72,8 @@
 | Next.js frontend | UI rendering, camera access for barcode scan, calls backend REST API only — no direct calls to Open Food Facts or Supabase from the browser |
 | FastAPI backend | All business logic: food lookup, scoring, body impact summary, alternative ranking, Amazon affiliate links |
 | Supabase Auth | User identity, JWT issuance, Google OAuth |
-| Supabase DB | User profiles (health conditions), scan history, LLM response cache |
+| Supabase DB | User profiles (health conditions), scan history, LLM response cache, Open Food Facts product cache |
+| In-memory cache (FastAPI) | Search result cache (TTL 1 hour) — avoids repeated OFF API calls for the same query |
 | Open Food Facts API | Product data: nutrition facts, Nutri-Score, NOVA group, category, images |
 | Claude Haiku API | Generates personalized body impact summaries |
 | Amazon PA API v5 | Returns purchasable alternatives with affiliate-tagged URLs |
@@ -70,7 +84,9 @@
 ```
 1. User types query or selects category + filters
 2. Frontend → GET /api/food/search?q=...&category=...&safe_for=...
-3. Backend → Open Food Facts API (with category/nutriscore filters)
+3. Backend checks in-memory TTLCache (query + filters as key)
+   a. Cache hit  → return cached results immediately
+   b. Cache miss → call Open Food Facts API → store in TTLCache (TTL: 1 hour)
 4. Backend computes generic score for each result (no user conditions)
 5. Backend applies min_score and safe_for filters server-side
 6. Frontend renders product grid with filter chips
@@ -87,7 +103,9 @@
 ### Food Detail Flow
 ```
 1. Frontend → GET /api/food/barcode/{barcode}  (+ JWT if logged in)
-2. Backend → Open Food Facts API (product data)
+2. Backend checks food_cache table (keyed by barcode)
+   a. Cache hit  → use stored product data (if cached_at < 7 days ago)
+   b. Cache miss → call Open Food Facts API → upsert into food_cache
 3. scoring_service computes score:
    a. Base score from Nutri-Score + NOVA
    b. If JWT present → fetch user health conditions from Supabase profiles

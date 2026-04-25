@@ -35,6 +35,15 @@ create table public.food_insights (
   primary key (barcode, conditions_key)
 );
 -- No RLS: cache is shared across all users with the same condition combo, not user-specific
+
+-- Open Food Facts product cache
+create table public.food_cache (
+  barcode     text primary key,
+  data        jsonb not null,   -- raw OFF API response
+  cached_at   timestamptz not null default now()
+);
+-- No RLS: product data is public, not user-specific
+-- Stale check: cached_at < now() - interval '7 days' → treat as cache miss and refresh
 ```
 
 ### RLS Policies
@@ -321,7 +330,7 @@ backend/app/
 │   ├── food.py             # FoodResult, ProductSummary, Nutrient, ScoreFactor
 │   └── user.py             # ProfileResponse, HistoryItem
 └── services/
-    ├── food_service.py     # Open Food Facts API calls + parsing
+    ├── food_service.py     # Open Food Facts API calls + parsing; checks food_cache (DB) for product lookups, TTLCache (in-memory) for search results
     ├── scoring_service.py  # Score computation
     ├── llm_service.py      # Claude API body impact summary (cached in food_insights table)
     └── amazon_service.py   # Amazon PA API v5 alternative lookup
