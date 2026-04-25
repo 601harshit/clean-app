@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import food, profile
+from app.api import food, history, profile
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -24,7 +24,4 @@ def health() -> dict[str, str]:
 
 app.include_router(food.router, prefix="/api/food", tags=["food"])
 app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
-
-# TODO(T1.7): include history router below once it lands
-# from app.api import history
-# app.include_router(history.router, prefix="/api/history", tags=["history"])
+app.include_router(history.router, prefix="/api/history", tags=["history"])
