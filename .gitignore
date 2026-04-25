@@ -1,18 +1,28 @@
 # Python
 __pycache__/
 *.py[cod]
-.venv/
 *.egg-info/
-.env
+.venv/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # Node
 node_modules/
 .next/
-.env.local
-.env*.local
+
+# Env files (keep .env.example)
+.env
+.env.*
+!.env.example
 
 # Supabase
 .supabase/
+supabase/.branches/
+supabase/.temp/
 
 # OS
 .DS_Store

@@ -19,7 +19,7 @@ These tasks establish shared infrastructure. They must be merged to `main` befor
 ### T0.2 — Backend foundation
 - **Spec**: `docs/lld.md` § Backend Module Structure
 - **Files**:
-  - `backend/pyproject.toml` (deps: fastapi, uvicorn, pydantic, pydantic-settings, httpx, supabase, anthropic, cachetools, python-dotenv)
+  - `backend/pyproject.toml` (deps: fastapi, uvicorn, pydantic, pydantic-settings, httpx, supabase, anthropic, cachetools, python-jose[cryptography]; dev extras: pytest, pytest-asyncio, pytest-cov, pytest-watch, respx, freezegun, ruff, mypy)
   - `backend/app/main.py` (FastAPI app, CORS, router includes)
   - `backend/app/core/config.py` (pydantic-settings: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY, AMAZON_*)
   - `backend/app/core/supabase.py` (Supabase admin client factory)
@@ -207,14 +207,14 @@ Each feature task is owned by one agent end-to-end: write failing tests against 
 
 | ID | Task | Owner | Branch | PR | Status |
 |----|------|-------|--------|-----|--------|
-| T0.1 | Repo housekeeping | — | — | — | TODO |
-| T0.2 | Backend foundation | — | — | — | TODO |
-| T0.3 | Backend shared models | — | — | — | TODO |
-| T0.4 | DB migrations + Supabase local | — | — | — | TODO |
-| T0.5 | Frontend foundation | — | — | — | TODO |
-| T0.6 | Test infrastructure | — | — | — | TODO |
-| T0.7 | HTTP fixtures | — | — | — | TODO |
-| T0.8 | CI workflow | — | — | — | TODO |
+| T0.1 | Repo housekeeping | phase-0 agent | phase-0-foundation | — | IN REVIEW |
+| T0.2 | Backend foundation | phase-0 agent | phase-0-foundation | — | IN REVIEW |
+| T0.3 | Backend shared models | phase-0 agent | phase-0-foundation | — | IN REVIEW |
+| T0.4 | DB migrations + Supabase local | — | — | — | TODO (needs Docker) |
+| T0.5 | Frontend foundation | phase-0 agent | phase-0-foundation | — | IN REVIEW |
+| T0.6 | Test infrastructure | — | — | — | TODO (needs Docker) |
+| T0.7 | HTTP fixtures | — | — | — | TODO (needs Docker) |
+| T0.8 | CI workflow | phase-0 agent | phase-0-foundation | — | IN REVIEW |
 | T1.1 | Auth | — | — | — | BLOCKED on T0.* |
 | T1.2 | Search + Browse + Filter | — | — | — | BLOCKED on T0.* |
 | T1.3 | Scoring + Detail | — | — | — | BLOCKED on T0.* |
