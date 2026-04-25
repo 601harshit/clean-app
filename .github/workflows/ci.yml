@@ -104,11 +104,13 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
       - run: npx playwright install --with-deps chromium
-      - name: Playwright tests (smoke + detail; auth specs need local Supabase)
+      - name: Playwright tests (smoke + detail + search; auth specs skipped)
         env:
           # Layout falls back to unauthenticated nav when these env vars are
           # unset, so smoke + detail don't depend on a live Supabase.
-          NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+          # NOTE: search.spec.ts intercepts http://localhost:8000 via
+          # page.route() — use the same hostname so the mock matches.
+          NEXT_PUBLIC_API_URL: http://localhost:8000
           PLAYWRIGHT_SKIP_AUTH: "1"
         run: npx playwright test --reporter=line
       - name: Upload Playwright report on failure
