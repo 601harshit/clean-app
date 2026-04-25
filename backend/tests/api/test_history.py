@@ -303,3 +303,55 @@ async def test_delete_history_idempotent(
     assert res2.status_code == 204
 
 
+# ---------------------------------------------------------------------------
+# DB failure → 500 (covers the except branches)
+# ---------------------------------------------------------------------------
+
+
+@requires_supabase
+@pytest.mark.asyncio
+async def test_get_history_db_failure_returns_500(
+    authed_client: tuple[httpx.AsyncClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the supabase select raises, /api/history returns 500."""
+    from app.api import history as history_api
+
+    class _BoomTable:
+        def select(self, *_a: object, **_k: object) -> _BoomTable:
+            raise RuntimeError("synthetic DB failure")
+
+    class _BoomClient:
+        def table(self, _name: str) -> _BoomTable:
+            return _BoomTable()
+
+    monkeypatch.setattr(history_api, "get_admin_client", lambda: _BoomClient())
+
+    client, _user_id, _token = authed_client
+    res = await client.get("/api/history")
+    assert res.status_code == 500
+
+
+@requires_supabase
+@pytest.mark.asyncio
+async def test_delete_history_db_failure_returns_500(
+    authed_client: tuple[httpx.AsyncClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api import history as history_api
+
+    class _BoomTable:
+        def delete(self, *_a: object, **_k: object) -> _BoomTable:
+            raise RuntimeError("synthetic DB failure")
+
+    class _BoomClient:
+        def table(self, _name: str) -> _BoomTable:
+            return _BoomTable()
+
+    monkeypatch.setattr(history_api, "get_admin_client", lambda: _BoomClient())
+
+    client, _user_id, _token = authed_client
+    res = await client.delete("/api/history")
+    assert res.status_code == 500
+
+
