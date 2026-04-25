@@ -43,24 +43,29 @@ function formatScannedAt(iso: string): string {
   });
 }
 
-async function loadHistory(): Promise<HistoryItem[] | null> {
+async function loadHistory(): Promise<{
+  items: HistoryItem[];
+  token: string;
+} | null> {
   const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) return null;
   try {
-    return await getHistory({ token: session.access_token });
+    const items = await getHistory({ token: session.access_token });
+    return { items, token: session.access_token };
   } catch {
-    return [];
+    return { items: [], token: session.access_token };
   }
 }
 
 export default async function HistoryPage() {
-  const items = await loadHistory();
-  if (items === null) {
+  const data = await loadHistory();
+  if (data === null) {
     redirect("/auth/login?redirect=/history");
   }
+  const { items, token } = data;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-12">
@@ -73,7 +78,7 @@ export default async function HistoryPage() {
             Your most recent {items.length === 0 ? "" : items.length} scans.
           </p>
         </div>
-        {items.length > 0 ? <ClearHistoryButton /> : null}
+        {items.length > 0 ? <ClearHistoryButton initialToken={token} /> : null}
       </header>
 
       {items.length === 0 ? (

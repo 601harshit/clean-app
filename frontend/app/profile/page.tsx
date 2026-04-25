@@ -21,6 +21,7 @@ export const dynamic = "force-dynamic";
 async function loadProfile(): Promise<{
   email: string;
   conditions: string[];
+  token: string;
 } | null> {
   const supabase = await createClient();
   const {
@@ -32,12 +33,14 @@ async function loadProfile(): Promise<{
     return {
       email: session.user.email ?? "",
       conditions: profile.health_conditions,
+      token: session.access_token,
     };
   } catch {
     // Network / backend down — fall back to empty so the page still renders.
     return {
       email: session.user.email ?? "",
       conditions: [],
+      token: session.access_token,
     };
   }
 }
@@ -62,7 +65,10 @@ export default async function ProfilePage() {
       </header>
 
       <section className="rounded-xl border border-zinc-200 bg-white p-6">
-        <ConditionPicker initialConditions={data.conditions} />
+        <ConditionPicker
+          initialConditions={data.conditions}
+          initialToken={data.token}
+        />
       </section>
     </div>
   );

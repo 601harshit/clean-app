@@ -7,6 +7,15 @@ import { Button } from "@/components/ui/button";
 import { clearHistory } from "@/lib/api";
 import { createClient } from "@/lib/supabase";
 
+export type ClearHistoryButtonProps = {
+  /**
+   * Server-rendered access token. We try the browser-side supabase
+   * client first (in case the token has been refreshed mid-session) and
+   * fall back to this prop.
+   */
+  initialToken?: string;
+};
+
 /**
  * Client island for FR-7.3: clearing scan history.
  *
@@ -14,7 +23,9 @@ import { createClient } from "@/lib/supabase";
  * successful DELETE we router.refresh() so the server component re-runs
  * and the page renders the empty state.
  */
-export function ClearHistoryButton() {
+export function ClearHistoryButton({
+  initialToken,
+}: ClearHistoryButtonProps = {}) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -23,11 +34,18 @@ export function ClearHistoryButton() {
   async function doClear() {
     setError(null);
     try {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token = initialToken;
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+        }
+      } catch {
+        // Browser client unavailable — fall through to initialToken.
+      }
       if (!token) {
         setError("Sign in required");
         return;
