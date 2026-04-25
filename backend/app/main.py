@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import food
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -21,8 +22,9 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+app.include_router(food.router, prefix="/api/food", tags=["food"])
+
 # TODO(T1.x): include feature routers once they exist
-# from app.api import food, profile, history
-# app.include_router(food.router, prefix="/api/food", tags=["food"])
+# from app.api import profile, history
 # app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 # app.include_router(history.router, prefix="/api/history", tags=["history"])
