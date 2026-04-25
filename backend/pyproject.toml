@@ -29,6 +29,7 @@ dev = [
     "freezegun>=1.5",
     "ruff>=0.6",
     "mypy>=1.11",
+    "types-cachetools>=5.5",
 ]
 
 [tool.setuptools.packages.find]
