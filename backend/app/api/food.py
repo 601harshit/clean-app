@@ -74,6 +74,37 @@ def _conditions_for_user(user_id: str | None) -> list[str]:
     return [str(c) for c in raw if isinstance(c, str)]
 
 
+def _record_scan_history(
+    user_id: str,
+    *,
+    barcode: str,
+    name: str,
+    brand: str | None,
+    image_url: str | None,
+    score: int,
+) -> None:
+    """Append a scan_history row for the authed user (best-effort).
+
+    Per FR-7.1: every authenticated detail-page view is recorded. We
+    swallow + log any DB errors so a history insert failure never breaks
+    the food detail response.
+    """
+    try:
+        client = get_admin_client()
+        client.table("scan_history").insert(
+            {
+                "user_id": user_id,
+                "barcode": barcode,
+                "product_name": name,
+                "brand": brand,
+                "image_url": image_url,
+                "score": score,
+            }
+        ).execute()
+    except Exception as exc:
+        logger.warning("scan_history insert failed for user %s: %s", user_id, exc)
+
+
 @router.get("/categories")
 def get_categories() -> dict[str, list[Category]]:
     """Return the curated category list (8 entries)."""
@@ -178,6 +209,16 @@ async def get_food_by_barcode(
         proteins=product["nutrients"]["proteins"],
         sodium=product["nutrients"]["sodium"],
     )
+
+    if user_id:
+        _record_scan_history(
+            user_id,
+            barcode=product["barcode"],
+            name=product["name"],
+            brand=product.get("brand"),
+            image_url=product.get("image_url"),
+            score=score,
+        )
 
     return FoodResult(
         barcode=product["barcode"],
