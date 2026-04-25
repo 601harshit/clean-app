@@ -16,6 +16,13 @@ export const CONDITION_OPTIONS: { value: string; label: string }[] = [
 
 export type ConditionPickerProps = {
   initialConditions: string[];
+  /**
+   * Server-side access token, captured at render time. Sufficient for
+   * the first save(s) on this page render. We try the browser-side
+   * supabase client first (so saves keep working after a token refresh
+   * during a long session), then fall back to this prop.
+   */
+  initialToken?: string;
   className?: string;
 };
 
@@ -31,6 +38,7 @@ type Status = "idle" | "saving" | "saved" | "error";
  */
 export function ConditionPicker({
   initialConditions,
+  initialToken,
   className,
 }: ConditionPickerProps) {
   const [selected, setSelected] = useState<Set<string>>(
@@ -42,11 +50,18 @@ export function ConditionPicker({
   async function persist(next: Set<string>) {
     setStatus("saving");
     try {
-      const supabase = createClient();
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      let token = initialToken;
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+        }
+      } catch {
+        // Browser client unavailable — fall through to initialToken.
+      }
       if (!token) {
         setStatus("error");
         return;
