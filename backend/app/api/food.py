@@ -25,7 +25,7 @@ from app.models.food import (
     ProductSummary,
     SearchResponse,
 )
-from app.services import food_service, scoring_service
+from app.services import food_service, llm_service, scoring_service
 
 logger = logging.getLogger(__name__)
 
@@ -179,8 +179,10 @@ async def get_food_by_barcode(
     user's conditions and personalize the score; otherwise we return a
     generic score with `personalized: false`.
 
-    `body_impact` stays null (T1.4 fills it) and `alternatives` stays []
-    (T1.6 fills it).
+    `alternatives` stays [] (T1.6 fills it). `body_impact` is populated
+    via llm_service — cache hit returns the stored summary, miss calls
+    Claude (Haiku) and persists the result. Any LLM failure leaves the
+    field as None so the page degrades gracefully.
     """
     product = await food_service.get_product(barcode)
     if product is None:
@@ -220,6 +222,10 @@ async def get_food_by_barcode(
             score=score,
         )
 
+    body_impact = await llm_service.get_body_impact(
+        product, conditions, get_admin_client()
+    )
+
     return FoodResult(
         barcode=product["barcode"],
         name=product["name"],
@@ -232,6 +238,6 @@ async def get_food_by_barcode(
         score_label=label,
         score_breakdown=factors_sorted,
         alternatives=[],  # T1.6
-        body_impact=None,  # T1.4
+        body_impact=body_impact,
         personalized=bool(conditions),
     )
