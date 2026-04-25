@@ -1,0 +1,61 @@
+# Local stack for the Clean. app.
+#
+# NOTE: Supabase (Postgres + Auth + PostgREST + Studio) is intentionally NOT
+# defined here. It is managed by the Supabase CLI, which runs its own
+# docker-compose under the hood:
+#
+#   supabase start     # brings up Supabase on ports 54321-54324
+#   supabase db reset  # apply migrations
+#
+# This file orchestrates only OUR services (backend, frontend) and assumes
+# Supabase is already running (or that you're running the services standalone).
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: clean-backend:dev
+    container_name: clean-backend
+    ports:
+      - "8000:8000"
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:-http://host.docker.internal:54321}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters-long}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-sk-ant-test}
+      AMAZON_ACCESS_KEY: ${AMAZON_ACCESS_KEY:-}
+      AMAZON_SECRET_KEY: ${AMAZON_SECRET_KEY:-}
+      AMAZON_PARTNER_TAG: ${AMAZON_PARTNER_TAG:-}
+      AMAZON_REGION: ${AMAZON_REGION:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: clean-frontend:dev
+    container_name: clean-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-http://localhost:54321}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

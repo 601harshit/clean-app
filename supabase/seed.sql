@@ -1,0 +1,12 @@
+-- Clean. — local dev seed (T0.4)
+--
+-- Test users are created on demand by `backend/tests/conftest.py` via
+-- `supabase.auth.admin.create_user(...)`. Auth-managed schemas (auth.users)
+-- aren't safe to seed by hand, and creating one here would be wiped on
+-- `supabase db reset`.
+--
+-- Product cache (`food_cache`) fills lazily when the first request for a
+-- barcode arrives, so no seed rows are needed.
+--
+-- Add seed inserts below if a future feature genuinely needs deterministic
+-- preloaded rows (e.g. a curated category list).

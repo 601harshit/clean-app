@@ -1,0 +1,28 @@
+{
+  "_synthetic": true,
+  "_note": "Hand-crafted to match Anthropic Messages API response shape. Replace with a real recording once ANTHROPIC_API_KEY is wired up (see ../README.md).",
+  "_request_summary": {
+    "model": "claude-haiku-4-5-20251001",
+    "barcode": "3017620422003",
+    "product_name": "Nutella",
+    "conditions_key": "cholesterol,diabetes"
+  },
+  "id": "msg_synthetic_nutella_diabetes_001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "content": [
+    {
+      "type": "text",
+      "text": "Nutella is extremely high in sugar (56g per 100g) and saturated fat, making it a poor choice for both blood sugar management and heart health. The rapid glucose spike from this much sugar is particularly risky for diabetics, and the 10g of saturated fat per 100g actively works against cholesterol management. The small amount of hazelnut protein (6g) is the only meaningful nutritional upside."
+    }
+  ],
+  "usage": {
+    "input_tokens": 312,
+    "output_tokens": 91,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 256
+  }
+}

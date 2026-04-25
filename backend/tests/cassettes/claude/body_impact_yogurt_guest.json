@@ -1,0 +1,28 @@
+{
+  "_synthetic": true,
+  "_note": "Hand-crafted to match Anthropic Messages API response shape. Replace with a real recording once ANTHROPIC_API_KEY is wired up (see ../README.md).",
+  "_request_summary": {
+    "model": "claude-haiku-4-5-20251001",
+    "barcode": "0894700010014",
+    "product_name": "Greek Yogurt Nonfat Plain",
+    "conditions_key": ""
+  },
+  "id": "msg_synthetic_yogurt_guest_001",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-4-5-20251001",
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "content": [
+    {
+      "type": "text",
+      "text": "Plain nonfat Greek yogurt is a nutritionally dense food — its high protein content (around 10g per 100g) supports muscle repair and keeps you full longer. The live cultures benefit gut health, and it's naturally low in sugar with no added fat. It's one of the few high-protein foods that also delivers meaningful calcium."
+    }
+  ],
+  "usage": {
+    "input_tokens": 298,
+    "output_tokens": 76,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 256
+  }
+}
