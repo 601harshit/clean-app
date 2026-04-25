@@ -52,35 +52,9 @@ See `docs/lld.md` — Scoring Algorithm section.
 
 ## AI Body Impact Summary
 
-### Model
-`claude-haiku-4-5-20251001` — fast and cheap for short generation tasks.
+A short Claude-generated summary explaining what this food does to the user's body. Details of the prompt, cache key, and DB table are in `docs/lld.md`.
 
-### Cache Key
-`barcode + ":" + ",".join(sorted(conditions))` — e.g.:
-- Guest: `"3017620422003:"`
-- Diabetic + hypertensive user: `"3017620422003:diabetes,hypertension"`
-
-Same conditions, different users → same cached message (the message is condition-based, not user-identity-based).
-
-### Prompt
-```
-System (cached):
-You are a nutrition expert writing for a health app. Given a food product's nutritional data
-and the user's health conditions, write a 2-3 sentence body impact summary in plain English.
-Be specific about key nutrients. Cover both positives and negatives. Do not use jargon.
-Do not repeat the product name after the first sentence.
-
-User:
-Product: {name} by {brand}
-Nutrients per 100g: {energy_kcal} kcal, fat {fat}g, saturated fat {saturated_fat}g,
-carbs {carbohydrates}g, sugars {sugars}g, fiber {fiber}g, protein {proteins}g, sodium {sodium}g
-Nutri-Score: {nutri_score}, NOVA group: {nova_group}
-User health conditions: {conditions if any, else "none"}
-
-Write the body impact summary:
-```
-
-### Examples
+### Expected output examples
 **Nutella, diabetic + cholesterol user:**
 > "Nutella is extremely high in sugar (56g/100g) and saturated fat, making it a poor choice for both blood sugar management and heart health. The rapid glucose spike from this much sugar is particularly risky for diabetics, and the 10g of saturated fat per 100g actively works against cholesterol management. The small amount of hazelnut protein (6g) is the only meaningful nutritional upside."
 

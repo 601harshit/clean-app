@@ -12,7 +12,7 @@
 
 ### FR-2: Health Profile
 - FR-2.1: Authenticated users can select zero or more health conditions: Diabetes, High Cholesterol, Hypertension, Obesity
-- FR-2.2: Profile is saved to Supabase and persists across sessions
+- FR-2.2: Profile persists across sessions and devices
 - FR-2.3: User can update their conditions at any time
 
 ### FR-3: Food Search, Browse & Filter
@@ -42,16 +42,15 @@
 - FR-5.4: Show Nutri-Score grade (A–E) and NOVA group (1–4) with brief explanations
 - FR-5.5: Show full nutrition facts (calories, fat, saturated fat, carbs, sugar, fiber, protein, sodium)
 - FR-5.6: Show score breakdown: list of factors with their impact (positive/negative) and a human-readable reason
-- FR-5.7: If user is not authenticated, score uses no condition modifiers and a banner prompts sign-in for personalization
+- FR-5.7: If user is not authenticated, score is not personalized and a banner prompts sign-in
 - FR-5.8: Show a 2–3 sentence AI-generated body impact summary explaining what this food does to the user's body in plain English, covering both positive and negative effects
 - FR-5.9: The body impact summary is personalized to the user's health conditions when logged in; generic when guest
-- FR-5.10: The body impact summary is cached (by barcode + conditions combination) so repeated lookups never re-call the LLM
 
 ### FR-6: Healthier Alternatives
 - FR-6.1: Show up to 5 healthier alternatives for the viewed product
 - FR-6.2: Each alternative shows: name, brand, health score, and an "Order on Amazon" link (affiliate)
 - FR-6.3: Alternatives are from the same product category (Open Food Facts category)
-- FR-6.4: Alternatives must have a strictly higher score than the current product
+- FR-6.4: Alternatives must score ≥ 60 ("Good" or better) and score higher than the current product
 
 ### FR-7: Scan History
 - FR-7.1: For authenticated users, every viewed food detail page is saved to scan history
@@ -66,6 +65,7 @@
 - NFR-1.1: Search results rendered within 1.5s of user input (including API round-trip)
 - NFR-1.2: Food detail page (score + alternatives) rendered within 2s
 - NFR-1.3: Backend score computation under 100ms
+- NFR-1.4: Body impact summary loads without perceptible extra delay on repeat views of the same product
 
 ### NFR-2: Security
 - NFR-2.1: No API keys exposed to the browser — all external API calls via backend
