@@ -18,7 +18,11 @@ node_modules/
 frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
+frontend/coverage/
 frontend/.swc/
+
+# Local agent worktrees
+.worktrees/
 
 # Env files (keep .env.example)
 .env
