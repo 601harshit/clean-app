@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useReducer } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { CategoryGrid } from "@/components/CategoryGrid"
@@ -52,7 +52,51 @@ function toQueryString(params: ParsedParams): string {
   return sp.toString()
 }
 
-const PAGE_SIZE = 20
+type ResultsState = {
+  products: ProductSummary[]
+  total: number
+  loading: boolean
+  error: string | null
+}
+
+type ResultsAction =
+  | { type: "fetch-start" }
+  | { type: "fetch-success"; products: ProductSummary[]; total: number; page: number }
+  | { type: "fetch-error" }
+  | { type: "reset" }
+
+const INITIAL_RESULTS: ResultsState = {
+  products: [],
+  total: 0,
+  loading: false,
+  error: null,
+}
+
+function resultsReducer(state: ResultsState, action: ResultsAction): ResultsState {
+  switch (action.type) {
+    case "fetch-start":
+      return { ...state, loading: true, error: null }
+    case "fetch-success":
+      return {
+        loading: false,
+        error: null,
+        total: action.total,
+        products:
+          action.page === 1
+            ? action.products
+            : [...state.products, ...action.products],
+      }
+    case "fetch-error":
+      return {
+        loading: false,
+        error: "Something went wrong. Please try again.",
+        products: [],
+        total: 0,
+      }
+    case "reset":
+      return INITIAL_RESULTS
+  }
+}
 
 export default function SearchPageClient() {
   const router = useRouter()
@@ -67,25 +111,21 @@ export default function SearchPageClient() {
     [spStr],
   )
 
-  const [products, setProducts] = useState<ProductSummary[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [results, dispatch] = useReducer(resultsReducer, INITIAL_RESULTS)
+  const { products, total, loading, error } = results
 
   const hasQuery = !!parsed.q || !!parsed.category
 
   useEffect(() => {
     if (!hasQuery) {
-      setProducts([])
-      setTotal(0)
-      setError(null)
+      dispatch({ type: "reset" })
       return
     }
     const ctrl = new AbortController()
-    setLoading(true)
-    setError(null)
+    dispatch({ type: "fetch-start" })
     const { page, q, category, min_score, safe_for, nutri_score, nova_group } =
       parsed
+    let cancelled = false
     searchFoods(
       {
         q,
@@ -99,20 +139,26 @@ export default function SearchPageClient() {
       { signal: ctrl.signal },
     )
       .then((res: SearchResponse) => {
-        setTotal(res.total)
-        // For page>1 append; for page==1 replace
-        setProducts((prev) =>
-          page === 1 ? res.products : [...prev, ...res.products],
+        if (cancelled) return
+        dispatch({
+          type: "fetch-success",
+          products: res.products,
+          total: res.total,
+          page,
+        })
+      })
+      .catch((e: unknown) => {
+        if (
+          cancelled ||
+          (e instanceof Error && e.name === "AbortError")
         )
+          return
+        dispatch({ type: "fetch-error" })
       })
-      .catch((e) => {
-        if (e?.name === "AbortError") return
-        setError("Something went wrong. Please try again.")
-        setProducts([])
-        setTotal(0)
-      })
-      .finally(() => setLoading(false))
-    return () => ctrl.abort()
+    return () => {
+      cancelled = true
+      ctrl.abort()
+    }
   }, [hasQuery, parsed])
 
   const navigate = useCallback(
