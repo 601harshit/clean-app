@@ -3,9 +3,12 @@ import { defineConfig, devices } from '@playwright/test'
 const PORT = process.env.PORT ?? '3000'
 const baseURL = `http://localhost:${PORT}`
 
-// Auth E2E talks to a real local Supabase. CI runs without one, so it sets
-// PLAYWRIGHT_SKIP_AUTH=1 to skip those specs (smoke + detail still run).
-const testIgnore = process.env.PLAYWRIGHT_SKIP_AUTH ? ['**/auth.spec.ts'] : []
+// Auth + profile/history E2E talk to a real local Supabase + FastAPI
+// stack. CI runs without one, so it sets PLAYWRIGHT_SKIP_AUTH=1 to skip
+// those specs (smoke + detail still run).
+const testIgnore = process.env.PLAYWRIGHT_SKIP_AUTH
+  ? ['**/auth.spec.ts', '**/profile.spec.ts']
+  : []
 
 export default defineConfig({
   testDir: './e2e',
