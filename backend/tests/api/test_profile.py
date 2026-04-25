@@ -247,6 +247,93 @@ async def test_user_a_cannot_see_user_b_conditions(
         supabase_admin.auth.admin.delete_user(user_b_id)
 
 
+# ---------------------------------------------------------------------------
+# DB failure → 500 (covers the except branches)
+# ---------------------------------------------------------------------------
+
+
+@requires_supabase
+@pytest.mark.asyncio
+async def test_get_profile_db_failure_returns_500(
+    authed_client: tuple[httpx.AsyncClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api import profile as profile_api
+
+    def boom(*_a: object, **_k: object) -> list[str]:
+        raise RuntimeError("synthetic DB failure")
+
+    monkeypatch.setattr(profile_api, "_read_conditions", boom)
+
+    client, _user_id, _token = authed_client
+    res = await client.get("/api/profile")
+    assert res.status_code == 500
+
+
+@requires_supabase
+@pytest.mark.asyncio
+async def test_put_profile_db_failure_returns_500(
+    authed_client: tuple[httpx.AsyncClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.api import profile as profile_api
+
+    class _BoomTable:
+        def upsert(self, *_a: object, **_k: object) -> _BoomTable:
+            raise RuntimeError("synthetic DB failure")
+
+    class _BoomClient:
+        def table(self, _name: str) -> _BoomTable:
+            return _BoomTable()
+
+    monkeypatch.setattr(profile_api, "get_admin_client", lambda: _BoomClient())
+
+    client, _user_id, _token = authed_client
+    res = await client.put(
+        "/api/profile", json={"health_conditions": ["diabetes"]}
+    )
+    assert res.status_code == 500
+
+
+@requires_supabase
+@pytest.mark.asyncio
+async def test_read_conditions_handles_corrupt_field(
+    authed_client: tuple[httpx.AsyncClient, str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Defensive branch: if the row's health_conditions field is not a
+    list (corrupt data), the helper returns [] instead of raising.
+    """
+    from app.api import profile as profile_api
+
+    class _Result:
+        data = [{"health_conditions": "not-a-list"}]
+
+    class _Builder:
+        def select(self, *_a: object, **_k: object) -> _Builder:
+            return self
+
+        def eq(self, *_a: object, **_k: object) -> _Builder:
+            return self
+
+        def limit(self, *_a: object, **_k: object) -> _Builder:
+            return self
+
+        def execute(self) -> _Result:
+            return _Result()
+
+    class _Client:
+        def table(self, _name: str) -> _Builder:
+            return _Builder()
+
+    monkeypatch.setattr(profile_api, "get_admin_client", lambda: _Client())
+
+    client, _user_id, _token = authed_client
+    res = await client.get("/api/profile")
+    assert res.status_code == 200
+    assert res.json() == {"health_conditions": []}
+
+
 @requires_supabase
 @pytest.mark.asyncio
 async def test_get_profile_handles_missing_row(
