@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.env
+
+# Node
+node_modules/
+.next/
+.env.local
+.env*.local
+
+# Supabase
+.supabase/
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
