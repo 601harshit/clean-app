@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { ScanLine } from "lucide-react"
 
 import { CategoryGrid } from "@/components/CategoryGrid"
 import { SearchBar } from "@/components/SearchBar"
@@ -19,7 +20,19 @@ export default function Home() {
       </section>
 
       <section>
-        <SearchBar />
+        <div className="flex w-full items-center gap-2">
+          <div className="flex-1">
+            <SearchBar />
+          </div>
+          <Link
+            href="/scan"
+            aria-label="Scan barcode"
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-300"
+          >
+            <ScanLine aria-hidden="true" className="size-4" />
+            <span className="sr-only md:not-sr-only">Scan barcode</span>
+          </Link>
+        </div>
         <p className="mt-3 text-center text-xs text-zinc-500">
           Try{" "}
           <Link href="/search?q=nutella" className="underline">
