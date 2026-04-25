@@ -16,13 +16,30 @@ export const metadata: Metadata = {
     "Personalized food health scores based on your conditions, with healthier alternatives.",
 };
 
+async function getNavUser() {
+  // Layout must never crash the whole app over auth lookup. Missing env
+  // (CI smoke runs without Supabase) or an unreachable Supabase both fall
+  // back to the unauthenticated nav.
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ) {
+    return null;
+  }
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data.user;
+  } catch {
+    return null;
+  }
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getNavUser();
 
   return (
     <html lang="en" className={`${geistSans.variable} h-full antialiased`}>
