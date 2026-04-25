@@ -56,7 +56,7 @@ const NUTELLA_FIXTURE = {
  */
 const STUB_PORT = 8000
 
-const test = base.extend<{ stubBackend: Server }>({
+const test = base.extend<object, { stubBackend: Server }>({
   stubBackend: [
     async ({}, use) => {
       const server = createServer((req, res) => {
