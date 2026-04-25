@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, Header, HTTPException, status
 from jose import JWTError, jwt
@@ -15,7 +15,7 @@ def _extract_bearer(authorization: str | None) -> str | None:
     return token
 
 
-def _decode(token: str, settings: Settings) -> dict:
+def _decode(token: str, settings: Settings) -> dict[str, Any]:
     secret = settings.SUPABASE_JWT_SECRET
     if not secret:
         raise HTTPException(
@@ -23,7 +23,10 @@ def _decode(token: str, settings: Settings) -> dict:
             detail="SUPABASE_JWT_SECRET not configured",
         )
     try:
-        return jwt.decode(token, secret, algorithms=["HS256"], audience="authenticated")
+        payload = jwt.decode(
+            token, secret, algorithms=["HS256"], audience="authenticated"
+        )
+        return cast(dict[str, Any], payload)
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
