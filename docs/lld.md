@@ -25,6 +25,16 @@ create table public.scan_history (
 );
 
 create index on public.scan_history (user_id, scanned_at desc);
+
+-- AI body impact summary cache
+create table public.food_insights (
+  barcode         text not null,
+  conditions_key  text not null,  -- sorted comma-joined conditions, e.g. "diabetes,hypertension" or "" for guest
+  message         text not null,
+  created_at      timestamptz not null default now(),
+  primary key (barcode, conditions_key)
+);
+-- No RLS: cache is shared across all users with the same condition combo, not user-specific
 ```
 
 ### RLS Policies
@@ -132,6 +142,7 @@ Response `200`:
     { "factor": "Ultra-processed (NOVA 4)", "impact": -15, "reason": "Highly processed food" },
     { "factor": "High sugar", "impact": -20, "reason": "Penalized for diabetes profile" }
   ],
+  "body_impact": "Nutella is extremely high in sugar and saturated fat, making it a poor choice for blood sugar management and heart health. The rapid glucose spike from 56g of sugar per 100g is particularly risky for diabetics, and the 10g of saturated fat actively works against cholesterol management. The small hazelnut protein content is the only meaningful nutritional upside.",
   "alternatives": [
     {
       "barcode": "3760020507350",
@@ -312,5 +323,6 @@ backend/app/
 └── services/
     ├── food_service.py     # Open Food Facts API calls + parsing
     ├── scoring_service.py  # Score computation
+    ├── llm_service.py      # Claude API body impact summary (cached in food_insights table)
     └── amazon_service.py   # Amazon PA API v5 alternative lookup
 ```

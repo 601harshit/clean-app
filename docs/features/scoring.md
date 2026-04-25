@@ -14,6 +14,7 @@ Show a user the full picture of a food product — nutrition facts, a 0–100 he
 - Score breakdown (per-factor impact list)
 - Nutrition facts table
 - Nutri-Score + NOVA display with explanations
+- AI body impact summary (personalized, cached)
 
 ## Out of Scope
 - User being able to override individual nutrient thresholds
@@ -31,6 +32,11 @@ Show a user the full picture of a food product — nutrition facts, a 0–100 he
 - [ ] Score breakdown section shows each factor: factor name, +/- impact, reason text
 - [ ] Breakdown factors are sorted by absolute impact (largest first)
 - [ ] Page renders correctly when Nutri-Score or NOVA is missing from Open Food Facts data
+- [ ] AI body impact summary shown just below the score ring, 2–3 sentences
+- [ ] Summary is personalized when user has conditions (e.g., mentions diabetes impact specifically)
+- [ ] Summary is generic when user is a guest
+- [ ] Cached: viewing the same product with the same conditions never triggers a new LLM call
+- [ ] If LLM call fails, section is silently omitted — does not break the page
 
 ## Scoring Algorithm
 See `docs/lld.md` — Scoring Algorithm section.
@@ -44,13 +50,52 @@ See `docs/lld.md` — Scoring Algorithm section.
 - `ScoreBreakdown.tsx` — collapsible list (collapsed by default on mobile)
 - `NutritionTable.tsx` — simple table, highlight rows that triggered a penalty in red
 
+## AI Body Impact Summary
+
+### Model
+`claude-haiku-4-5-20251001` — fast and cheap for short generation tasks.
+
+### Cache Key
+`barcode + ":" + ",".join(sorted(conditions))` — e.g.:
+- Guest: `"3017620422003:"`
+- Diabetic + hypertensive user: `"3017620422003:diabetes,hypertension"`
+
+Same conditions, different users → same cached message (the message is condition-based, not user-identity-based).
+
+### Prompt
+```
+System (cached):
+You are a nutrition expert writing for a health app. Given a food product's nutritional data
+and the user's health conditions, write a 2-3 sentence body impact summary in plain English.
+Be specific about key nutrients. Cover both positives and negatives. Do not use jargon.
+Do not repeat the product name after the first sentence.
+
+User:
+Product: {name} by {brand}
+Nutrients per 100g: {energy_kcal} kcal, fat {fat}g, saturated fat {saturated_fat}g,
+carbs {carbohydrates}g, sugars {sugars}g, fiber {fiber}g, protein {proteins}g, sodium {sodium}g
+Nutri-Score: {nutri_score}, NOVA group: {nova_group}
+User health conditions: {conditions if any, else "none"}
+
+Write the body impact summary:
+```
+
+### Examples
+**Nutella, diabetic + cholesterol user:**
+> "Nutella is extremely high in sugar (56g/100g) and saturated fat, making it a poor choice for both blood sugar management and heart health. The rapid glucose spike from this much sugar is particularly risky for diabetics, and the 10g of saturated fat per 100g actively works against cholesterol management. The small amount of hazelnut protein (6g) is the only meaningful nutritional upside."
+
+**Plain Greek Yogurt, no conditions:**
+> "Plain Greek yogurt is a nutritionally dense food — its high protein content (10g/100g) supports muscle repair and keeps you full longer. The live cultures benefit gut health, and it's naturally low in sugar. It's one of the few high-protein foods that also delivers meaningful calcium."
+
 ## Files to Create/Modify
 - `frontend/app/food/[barcode]/page.tsx` — server component, fetches via `lib/api.ts`
 - `frontend/components/ScoreRing.tsx`
 - `frontend/components/ScoreBreakdown.tsx`
 - `frontend/components/NutritionTable.tsx`
+- `frontend/components/BodyImpactSummary.tsx` — renders the AI summary text
 - `frontend/lib/api.ts` — `getFoodByBarcode(barcode, jwt?)` function
 - `backend/app/api/food.py` — `GET /api/food/barcode/{barcode}`
 - `backend/app/services/food_service.py` — `get_product(barcode)`
 - `backend/app/services/scoring_service.py` — `compute_score(nutrients, nutri_score, nova, conditions)`
+- `backend/app/services/llm_service.py` — `get_body_impact(product, conditions) -> str | None`
 - `backend/app/models/food.py` — `FoodResult`, `Nutrient`, `ScoreFactor`

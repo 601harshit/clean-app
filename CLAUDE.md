@@ -85,3 +85,8 @@ pytest                                     # Run tests
 
 ## Environment Variables
 See `.env.example` in each subfolder. Never commit `.env` files.
+
+Key backend env vars:
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- `ANTHROPIC_API_KEY` — Claude API for body impact summaries (model: claude-haiku-4-5-20251001)
+- `AMAZON_ACCESS_KEY`, `AMAZON_SECRET_KEY`, `AMAZON_PARTNER_TAG`, `AMAZON_REGION`

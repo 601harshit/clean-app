@@ -43,6 +43,9 @@
 - FR-5.5: Show full nutrition facts (calories, fat, saturated fat, carbs, sugar, fiber, protein, sodium)
 - FR-5.6: Show score breakdown: list of factors with their impact (positive/negative) and a human-readable reason
 - FR-5.7: If user is not authenticated, score uses no condition modifiers and a banner prompts sign-in for personalization
+- FR-5.8: Show a 2–3 sentence AI-generated body impact summary explaining what this food does to the user's body in plain English, covering both positive and negative effects
+- FR-5.9: The body impact summary is personalized to the user's health conditions when logged in; generic when guest
+- FR-5.10: The body impact summary is cached (by barcode + conditions combination) so repeated lookups never re-call the LLM
 
 ### FR-6: Healthier Alternatives
 - FR-6.1: Show up to 5 healthier alternatives for the viewed product
