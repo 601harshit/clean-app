@@ -21,6 +21,7 @@ import ScoreRing from '@/components/ScoreRing';
 import ScoreBreakdown from '@/components/ScoreBreakdown';
 import NutritionTable from '@/components/NutritionTable';
 import BodyImpactSummary from '@/components/BodyImpactSummary';
+import AlternativeCard from '@/components/AlternativeCard';
 
 export const dynamic = 'force-dynamic'; // session-dependent, never prerender
 
@@ -171,12 +172,36 @@ export default async function FoodDetailPage({ params }: PageProps) {
         <NutritionTable nutrients={f.nutrients} />
       </div>
 
-      {/* Alternatives placeholder — T1.6 fills this in via AlternativeCard */}
       <section
-        className="mt-6 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-center text-sm text-zinc-500"
-        data-testid="alternatives-placeholder"
+        className="mt-8"
+        data-testid="alternatives-section"
+        aria-labelledby="alternatives-heading"
       >
-        Healthier alternatives coming soon.
+        <h2
+          id="alternatives-heading"
+          className="text-sm font-semibold uppercase tracking-wide text-zinc-500"
+        >
+          Healthier alternatives
+        </h2>
+        {f.alternatives.length === 0 ? (
+          <p
+            className="mt-3 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-4 text-center text-sm text-zinc-500"
+            data-testid="alternatives-empty"
+          >
+            No healthier alternatives found for this product.
+          </p>
+        ) : (
+          <ul
+            className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3"
+            data-testid="alternatives-list"
+          >
+            {f.alternatives.map((alt) => (
+              <li key={alt.barcode}>
+                <AlternativeCard alternative={alt} />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );
