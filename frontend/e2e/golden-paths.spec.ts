@@ -658,3 +658,53 @@ test.describe('golden path #4 — click alternative card navigates to alternativ
     await expect(ring).toContainText(/Excellent/i)
   })
 })
+
+// ==========================================================================
+// Scenario 5 — Visiting the same product twice still renders. Body impact
+// (if returned) matches between renders.
+// ==========================================================================
+
+test.describe('golden path #5 — second view of same product still renders', () => {
+  test('two consecutive visits both render correctly; body_impact is consistent', async ({
+    page,
+  }) => {
+    let hits = 0
+    const stableImpact =
+      'Nutella is high in sugar; consider a lower-sugar alternative.'
+    setBackend(({ url }) => {
+      if (url.startsWith(`/api/food/barcode/${NUTELLA_BARCODE}`)) {
+        hits += 1
+        const body = { ...nutellaGuest(), body_impact: stableImpact }
+        return { status: 200, body: JSON.stringify(body) }
+      }
+      return undefined
+    })
+
+    // First visit.
+    await page.goto(`/food/${NUTELLA_BARCODE}`)
+    await expect(
+      page.getByRole('heading', { level: 1, name: /nutella/i }),
+    ).toBeVisible()
+    await expect(page.getByTestId('score-ring')).toContainText('12')
+    const firstImpact = await page
+      .getByTestId('body-impact-summary')
+      .textContent()
+    expect(firstImpact).toContain(stableImpact)
+
+    // Second visit (force a fresh request by navigating away first).
+    await page.goto('/')
+    await page.goto(`/food/${NUTELLA_BARCODE}`)
+    await expect(
+      page.getByRole('heading', { level: 1, name: /nutella/i }),
+    ).toBeVisible()
+    await expect(page.getByTestId('score-ring')).toContainText('12')
+    const secondImpact = await page
+      .getByTestId('body-impact-summary')
+      .textContent()
+    expect(secondImpact).toBe(firstImpact)
+
+    // Both renders hit the backend at least once each (we can't observe
+    // LLM call count from the browser; this just smoke-tests cache safety).
+    expect(hits).toBeGreaterThanOrEqual(2)
+  })
+})
