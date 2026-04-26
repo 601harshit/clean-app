@@ -93,6 +93,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 const STUB_PORT = Number(new URL(API_BASE).port || '8000')
 
 const NUTELLA_BARCODE = '3017620422003'
+const ALMOND_BUTTER_BARCODE = 'ALT-ALMOND'
+const CASHEW_BUTTER_BARCODE = 'ALT-CASHEW'
 
 const NUTELLA_NUTRIENTS: Nutrient = {
   energy_kcal: 539,
@@ -161,6 +163,64 @@ function nutellaPersonalized(): FoodResult {
       },
     ],
     personalized: true,
+  }
+}
+
+function nutellaWithAlternatives(): FoodResult {
+  return {
+    ...nutellaGuest(),
+    alternatives: [
+      {
+        barcode: ALMOND_BUTTER_BARCODE,
+        name: 'Almond Butter',
+        brand: "Justin's",
+        score: 82,
+        image_url: null,
+        amazon_url: 'https://www.amazon.com/dp/X1?tag=clean-20',
+      },
+      {
+        barcode: CASHEW_BUTTER_BARCODE,
+        name: 'Cashew Butter',
+        brand: 'Artisana',
+        score: 74,
+        image_url: null,
+        amazon_url: null,
+      },
+    ],
+  }
+}
+
+function almondButterDetail(): FoodResult {
+  return {
+    barcode: ALMOND_BUTTER_BARCODE,
+    name: 'Almond Butter',
+    brand: "Justin's",
+    image_url: null,
+    nutri_score: 'A',
+    nova_group: 1,
+    nutrients: {
+      energy_kcal: 614,
+      fat: 56,
+      saturated_fat: 4.5,
+      carbohydrates: 19,
+      sugars: 3,
+      fiber: 10,
+      proteins: 21,
+      sodium: 0.0,
+    },
+    score: 82,
+    score_label: 'Excellent',
+    score_breakdown: [
+      { factor: 'Nutri-Score A', impact: 30, reason: 'Base score from OFF' },
+      {
+        factor: 'NOVA 1 (unprocessed)',
+        impact: 10,
+        reason: 'Unprocessed bonus',
+      },
+    ],
+    alternatives: [],
+    body_impact: null,
+    personalized: false,
   }
 }
 
@@ -540,5 +600,61 @@ test.describe('golden path #3 — Snacks + Safe for Diabetics filter chain', () 
     for (let i = 0; i < count; i++) {
       await expect(cards.nth(i).getByTestId('score-badge')).toBeVisible()
     }
+  })
+})
+
+// ==========================================================================
+// Scenario 4 — Click an alternative on a detail page, land on its detail
+// page with the alternative's score as the main score.
+// ==========================================================================
+
+test.describe('golden path #4 — click alternative card navigates to alternative detail', () => {
+  test('clicking the first alternative name navigates to /food/[alt-barcode] and renders its score', async ({
+    page,
+  }) => {
+    setBackend(({ url }) => {
+      if (url.startsWith(`/api/food/barcode/${NUTELLA_BARCODE}`)) {
+        return {
+          status: 200,
+          body: JSON.stringify(nutellaWithAlternatives()),
+        }
+      }
+      if (url.startsWith(`/api/food/barcode/${ALMOND_BUTTER_BARCODE}`)) {
+        return { status: 200, body: JSON.stringify(almondButterDetail()) }
+      }
+      return undefined
+    })
+
+    await page.goto(`/food/${NUTELLA_BARCODE}`)
+    await expect(
+      page.getByRole('heading', { level: 1, name: /nutella/i }),
+    ).toBeVisible()
+
+    // At least two alternatives present.
+    const cards = page.getByTestId('alternative-card')
+    await expect(cards).toHaveCount(2)
+
+    // First card is Almond Butter with score 82.
+    const first = cards.first()
+    await expect(first.getByTestId('alternative-name')).toHaveText(
+      'Almond Butter',
+    )
+    await expect(first.getByTestId('alternative-score-badge')).toHaveText('82')
+
+    // Click the alternative name → navigate to its detail page.
+    await first.getByTestId('alternative-name').click()
+    await expect(page).toHaveURL(
+      new RegExp(`/food/${ALMOND_BUTTER_BARCODE}$`),
+    )
+
+    // The new page renders with the alternative as the *main* product
+    // (header) and the alternative's score (82, "Excellent") in the ring.
+    await expect(
+      page.getByRole('heading', { level: 1, name: /almond butter/i }),
+    ).toBeVisible()
+    const ring = page.getByTestId('score-ring')
+    await expect(ring).toBeVisible()
+    await expect(ring).toContainText('82')
+    await expect(ring).toContainText(/Excellent/i)
   })
 })
