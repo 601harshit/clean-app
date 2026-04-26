@@ -101,6 +101,7 @@ class TestExtractFirstItemUrl:
             {"SearchResult": {"Items": [{"DetailPageURL": 123}]}},
             {"SearchResult": {"Items": [{}]}},
             {"SearchResult": {"Items": [{"DetailPageURL": "ftp://nope"}]}},
+            {"SearchResult": {"Items": ["string-not-dict"]}},
             "not a dict",
         ],
     )
