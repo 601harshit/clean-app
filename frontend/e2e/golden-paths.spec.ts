@@ -485,3 +485,60 @@ test.describe('golden path #2 — signup → set conditions → personalized sco
     ).toBeVisible()
   })
 })
+
+// ==========================================================================
+// Scenario 3 — /search?category=snacks → check Safe-for-Diabetes →
+// URL has safe_for=diabetes, results render with score badges, chip appears.
+// ==========================================================================
+
+test.describe('golden path #3 — Snacks + Safe for Diabetics filter chain', () => {
+  test('checking "Safe for Diabetes" pushes the filter, shows the chip, and re-renders results', async ({
+    page,
+  }) => {
+    let lastSafeFor: string[] = []
+    let lastCategory: string | null = null
+    await mockCategoriesAPI(page)
+    await mockSearchAPI(page, (params) => {
+      lastSafeFor = params.getAll('safe_for')
+      lastCategory = params.get('category')
+      return {
+        products: [
+          makeListProduct(1, { name: 'Crunchy Oats', score: 78 }),
+          makeListProduct(2, { name: 'Whole-grain Crackers', score: 72 }),
+        ],
+        total: 2,
+        page: 1,
+      }
+    })
+
+    // Land on the snacks category page.
+    await page.goto('/search?category=snacks')
+    await expect(page.getByText('Crunchy Oats')).toBeVisible()
+    await expect.poll(() => lastCategory).toBe('snacks')
+
+    // Toggle Safe for Diabetes in the desktop sidebar (matches search.spec.ts
+    // pattern). Force the desktop variant for viewport stability.
+    await page
+      .getByTestId('filter-panel-sidebar')
+      .getByRole('checkbox', { name: /safe for diabetes/i })
+      .click()
+
+    // URL gains the filter; backend request includes safe_for=diabetes.
+    await expect(page).toHaveURL(/safe_for=diabetes/)
+    await expect(page).toHaveURL(/category=snacks/)
+    await expect.poll(() => lastSafeFor).toEqual(['diabetes'])
+
+    // Active-filter chip is rendered.
+    await expect(page.getByTestId('chip-safe_for-diabetes')).toBeVisible()
+
+    // Every visible result card shows a score badge — the cross-feature
+    // contract that filtering keeps cards renderable. The actual safety
+    // check is enforced server-side; we don't re-derive it here.
+    const cards = page.getByTestId('product-card')
+    const count = await cards.count()
+    expect(count).toBeGreaterThan(0)
+    for (let i = 0; i < count; i++) {
+      await expect(cards.nth(i).getByTestId('score-badge')).toBeVisible()
+    }
+  })
+})
