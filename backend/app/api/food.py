@@ -226,6 +226,22 @@ async def get_food_by_barcode(
         product, conditions, get_admin_client()
     )
 
+    # Pick the most specific OFF category tag; pnns_groups_1 is missing in
+    # our parsed shape, so we fall back to the last entry of categories_tags
+    # which is the most specific (e.g. "en:hazelnut-spreads"). The very
+    # specific tag often returns too few candidates, so we prefer the
+    # broader root category — categories_tags[0] — per docs/features
+    # /alternatives.md ("use pnns_groups_1 or categories_tags[0]").
+    cats = product.get("categories_tags") or []
+    alt_category = cats[0] if cats else None
+
+    alternatives = await food_service.get_alternatives(
+        barcode=product["barcode"],
+        category=alt_category,
+        current_score=score,
+        conditions=conditions,
+    )
+
     return FoodResult(
         barcode=product["barcode"],
         name=product["name"],
@@ -237,7 +253,7 @@ async def get_food_by_barcode(
         score=score,
         score_label=label,
         score_breakdown=factors_sorted,
-        alternatives=[],  # T1.6
+        alternatives=alternatives,
         body_impact=body_impact,
         personalized=bool(conditions),
     )
