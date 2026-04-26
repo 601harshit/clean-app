@@ -22,6 +22,7 @@ from app.services import food_service
 from app.services.food_service import (
     OFF_BASE,
     PRODUCT_CACHE_TTL,
+    SEARCH_BASE,
     _cache_get,
     _cache_put,
     _search_cache_key,
@@ -409,16 +410,27 @@ class TestSearchProducts:
         assert total == 0
 
     @pytest.mark.asyncio
-    async def test_with_query_uses_off_search(self) -> None:
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(
-                return_value=httpx.Response(200, json=_load("search_chocolate"))
+    async def test_with_query_uses_search_a_licious(self) -> None:
+        # Search-a-licious returns hits[] (flat product objects), not the
+        # OFF v1 wrapped {"products": [...]} shape.
+        hits = [
+            {
+                "code": "3017620422003",
+                "product_name": "Chocolate spread",
+                "brands": ["Ferrero"],
+                "nutriscore_grade": "e",
+                "nova_group": 4,
+            }
+        ]
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(
+                return_value=httpx.Response(200, json={"hits": hits, "count": 12345})
             )
             products, total = await search_products(q="chocolate")
-        assert total > 0
-        assert len(products) > 0
-        for p in products:
-            assert "barcode" in p
+        assert total == 12345
+        assert len(products) == 1
+        assert products[0]["barcode"] == "3017620422003"
+        assert products[0]["brand"] == "Ferrero"
 
     @pytest.mark.asyncio
     async def test_search_caches_repeated_calls(self) -> None:
@@ -426,26 +438,26 @@ class TestSearchProducts:
 
         def _resp(_request: httpx.Request) -> httpx.Response:
             calls["n"] += 1
-            return httpx.Response(200, json=_load("search_chocolate"))
+            return httpx.Response(200, json={"hits": [], "count": 0})
 
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(side_effect=_resp)
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(side_effect=_resp)
             await search_products(q="chocolate")
             await search_products(q="chocolate")
         assert calls["n"] == 1
 
     @pytest.mark.asyncio
     async def test_search_404_returns_empty(self) -> None:
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(return_value=httpx.Response(404))
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(return_value=httpx.Response(404))
             products, total = await search_products(q="zzz")
         assert products == []
         assert total == 0
 
     @pytest.mark.asyncio
     async def test_search_malformed_json_returns_empty(self) -> None:
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(
                 return_value=httpx.Response(200, content=b"oops{")
             )
             products, total = await search_products(q="malformed")
@@ -454,43 +466,44 @@ class TestSearchProducts:
 
     @pytest.mark.asyncio
     async def test_search_network_error_returns_empty(self) -> None:
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(
-                side_effect=httpx.ConnectError("down")
-            )
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(side_effect=httpx.ConnectError("down"))
             products, total = await search_products(q="net-down")
         assert products == []
         assert total == 0
 
     @pytest.mark.asyncio
-    async def test_search_with_filters_passes_through(self) -> None:
+    async def test_search_with_filters_builds_lucene_query(self) -> None:
         captured: dict[str, str] = {}
 
         def _resp(request: httpx.Request) -> httpx.Response:
             for k, v in request.url.params.multi_items():
                 captured[k] = v
-            return httpx.Response(200, json={"products": [], "count": 0})
+            return httpx.Response(200, json={"hits": [], "count": 0})
 
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(side_effect=_resp)
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(side_effect=_resp)
             await search_products(
-                q="x",
+                q="oats",
                 category="snacks",
                 page=2,
                 nutri_score=["A", "B"],
                 nova_group=[1, 2],
             )
-        assert captured["search_terms"] == "x"
         assert captured["page"] == "2"
-        assert captured["tag_0"] == "snacks"
-        assert "a" in captured["tag_1"] and "b" in captured["tag_1"]
-        assert captured["tag_2"] == "1,2"
+        # All clauses AND'd together in the q parameter.
+        q_param = captured["q"]
+        assert "oats" in q_param
+        assert 'categories_tags:"en:snacks"' in q_param
+        assert "nutriscore_grade:(a OR b)" in q_param
+        assert "nova_groups:(1 OR 2)" in q_param
+        assert " AND " in q_param
 
     @pytest.mark.asyncio
     async def test_category_only_works(self) -> None:
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(
-                return_value=httpx.Response(200, json={"products": [], "count": 0})
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(
+                return_value=httpx.Response(200, json={"hits": [], "count": 0})
             )
             products, total = await search_products(category="snacks")
         assert products == []
@@ -503,12 +516,29 @@ class TestSearchProducts:
         def _resp(request: httpx.Request) -> httpx.Response:
             for k, v in request.url.params.multi_items():
                 captured[k] = v
-            return httpx.Response(200, json={"products": [], "count": 0})
+            return httpx.Response(200, json={"hits": [], "count": 0})
 
-        with respx.mock(base_url=OFF_BASE) as router:
-            router.get("/cgi/search.pl").mock(side_effect=_resp)
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(side_effect=_resp)
             await search_products(q="x", page=0)
         assert captured["page"] == "1"
+
+    @pytest.mark.asyncio
+    async def test_search_strips_lucene_special_chars(self) -> None:
+        """Free-text query is sanitized so user input can't break Lucene parsing."""
+        captured: dict[str, str] = {}
+
+        def _resp(request: httpx.Request) -> httpx.Response:
+            for k, v in request.url.params.multi_items():
+                captured[k] = v
+            return httpx.Response(200, json={"hits": [], "count": 0})
+
+        with respx.mock(base_url=SEARCH_BASE) as router:
+            router.get("/search").mock(side_effect=_resp)
+            await search_products(q='oats AND "drop table"')
+        # special chars and quotes removed; only word chars + hyphens kept
+        assert '"' not in captured["q"]
+        assert "drop" in captured["q"] and "table" in captured["q"]
 
     def test_search_cache_key_normalizes(self) -> None:
         k1 = _search_cache_key("Chocolate", "Snacks", 1, ("A", "B"), (1, 2))

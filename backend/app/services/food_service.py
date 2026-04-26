@@ -35,6 +35,11 @@ ALTERNATIVES_MIN_SCORE = 60
 ALTERNATIVES_MAX = 5
 
 OFF_BASE = "https://world.openfoodfacts.org"
+# Search-a-licious is OFF's modern Elasticsearch-backed search service. We
+# use it instead of the legacy /cgi/search.pl because the latter is unstable
+# (frequent 503s). Product (barcode) lookups still hit OFF_BASE directly,
+# which is reliable.
+SEARCH_BASE = "https://search.openfoodfacts.org"
 USER_AGENT = "Clean.App/0.1 (https://github.com/getclean/clean-app)"
 DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 PRODUCT_CACHE_TTL = timedelta(days=7)
@@ -115,12 +120,23 @@ def parse_product(off_payload: dict[str, Any]) -> dict[str, Any] | None:
         product.get("image_url")
         or product.get("image_front_url")
         or product.get("image_front_small_url")
+        or product.get("image_front_thumb_url")  # search-a-licious uses this
     )
+
+    # OFF v1/v2 product API returns `brands` as a comma-separated string.
+    # Search-a-licious returns it as a list[str]. Handle both.
+    brands_raw = product.get("brands")
+    if isinstance(brands_raw, list):
+        brand = (brands_raw[0].strip() if brands_raw else "") or None
+    elif isinstance(brands_raw, str):
+        brand = brands_raw.split(",")[0].strip() or None
+    else:
+        brand = None
 
     return {
         "barcode": str(product.get("code")),
         "name": product.get("product_name") or product.get("generic_name") or "Unknown",
-        "brand": (product.get("brands") or "").split(",")[0].strip() or None,
+        "brand": brand,
         "image_url": image_url,
         "nutri_score": nutri_upper,
         "nova_group": nova_group,
@@ -280,35 +296,48 @@ async def search_products(
     if cached is not None:
         return cached
 
+    # Build a Lucene query for Search-a-licious. Free text + filters AND'd.
+    # NOTE: do not wrap `q` in double-quotes — that triggers exact-phrase
+    # match and returns 0 results for everyday terms like "oats".
+    clauses: list[str] = []
+    if q:
+        # Lucene specials: drop characters that would break the parser.
+        safe_q = "".join(c for c in q if c.isalnum() or c in " -")
+        if safe_q.strip():
+            clauses.append(safe_q.strip())
+    if category:
+        # Search-a-licious indexes category tags as "en:snacks" etc.
+        # Quote the value (Lucene treats the inner colon literally inside quotes).
+        safe_cat = "".join(c for c in category if c.isalnum() or c in "-_")
+        clauses.append(f'categories_tags:"en:{safe_cat}"')
+    if nutri_score:
+        grades = " OR ".join(s.lower() for s in nutri_score)
+        clauses.append(f"nutriscore_grade:({grades})")
+    if nova_group:
+        groups = " OR ".join(str(n) for n in nova_group)
+        clauses.append(f"nova_groups:({groups})")
+    lucene = " AND ".join(clauses) if clauses else "*"
+
+    fields = ",".join([
+        "code", "product_name", "generic_name", "brands",
+        "image_front_thumb_url", "image_front_url",
+        "nutriscore_grade", "nova_group", "categories_tags",
+    ])
     params: dict[str, Any] = {
+        "q": lucene,
         "page": page,
         "page_size": PAGE_SIZE,
-        "json": 1,
+        "fields": fields,
     }
-    if q:
-        params["search_terms"] = q
-    if category:
-        params["tagtype_0"] = "categories"
-        params["tag_contains_0"] = "contains"
-        params["tag_0"] = category
-    if nutri_score:
-        params["tagtype_1"] = "nutrition_grades"
-        params["tag_contains_1"] = "contains"
-        # OFF accepts comma-separated lower-case grades
-        params["tag_1"] = ",".join(s.lower() for s in nutri_score)
-    if nova_group:
-        params["tagtype_2"] = "nova_groups"
-        params["tag_contains_2"] = "contains"
-        params["tag_2"] = ",".join(str(n) for n in nova_group)
 
-    url = f"{OFF_BASE}/cgi/search.pl"
+    url = f"{SEARCH_BASE}/search"
     try:
         async with httpx.AsyncClient(
             timeout=DEFAULT_TIMEOUT, headers={"User-Agent": USER_AGENT}
         ) as client:
             resp = await client.get(url, params=params)
     except httpx.HTTPError as exc:
-        logger.warning("OFF search failed for %r: %s", q or category, exc)
+        logger.warning("Search-a-licious failed for %r: %s", q or category, exc)
         return [], 0
 
     if resp.status_code != 200:
@@ -318,9 +347,10 @@ async def search_products(
     except ValueError:
         return [], 0
 
-    raw_products = payload.get("products") or []
+    raw_hits = payload.get("hits") or []
     parsed: list[dict[str, Any]] = []
-    for raw in raw_products:
+    for raw in raw_hits:
+        # Search-a-licious returns flat hits (no top-level "product" wrapper).
         p = parse_product(raw)
         if p is not None:
             parsed.append(p)
