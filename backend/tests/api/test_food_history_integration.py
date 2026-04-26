@@ -41,11 +41,24 @@ def disable_food_cache() -> Iterator[None]:
         food_service._cache_put = original_put  # type: ignore[assignment]
 
 
+@pytest.fixture
+def stub_alternatives(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Short-circuit alternatives so respx mocks for the OFF product call are
+    sufficient (no second OFF round-trip during these history-side-effect tests).
+    """
+
+    async def _empty(**_kwargs: object) -> list[object]:
+        return []
+
+    monkeypatch.setattr(food_service, "get_alternatives", _empty)
+
+
 @requires_supabase
 @pytest.mark.asyncio
 async def test_authed_view_records_history(
     authed_client: tuple[httpx.AsyncClient, str, str],
     disable_food_cache: None,
+    stub_alternatives: None,
     reset_db: None,
 ) -> None:
     client, _user_id, _token = authed_client
@@ -72,6 +85,7 @@ async def test_authed_view_records_history(
 async def test_anon_view_does_not_record_history(
     authed_client: tuple[httpx.AsyncClient, str, str],
     disable_food_cache: None,
+    stub_alternatives: None,
     reset_db: None,
 ) -> None:
     """Anonymous food views must not insert scan_history rows.
@@ -103,6 +117,7 @@ async def test_anon_view_does_not_record_history(
 @pytest.mark.asyncio
 async def test_404_does_not_attempt_history_insert(
     disable_food_cache: None,
+    stub_alternatives: None,
 ) -> None:
     """If OFF returns no product, the handler 404s before history insert.
 
@@ -127,6 +142,7 @@ async def test_404_does_not_attempt_history_insert(
 async def test_history_insert_failure_does_not_break_response(
     authed_client: tuple[httpx.AsyncClient, str, str],
     disable_food_cache: None,
+    stub_alternatives: None,
     reset_db: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
