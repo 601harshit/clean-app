@@ -55,11 +55,27 @@ def stub_body_impact(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm_service, "get_body_impact", _none)
 
 
+@pytest.fixture
+def stub_alternatives(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Short-circuit the alternatives lookup with an empty list.
+
+    Used by tests that assert other parts of the FoodResult and don't
+    want a second OFF round-trip per request. Tests that *do* care about
+    alternatives override this with their own monkeypatch.
+    """
+
+    async def _empty(*_args: Any, **_kwargs: Any) -> list[Any]:
+        return []
+
+    monkeypatch.setattr(food_service, "get_alternatives", _empty)
+
+
 @pytest.mark.asyncio
 async def test_404_when_off_unknown(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     with respx.mock(base_url=food_service.OFF_BASE) as router:
         router.get("/api/v2/product/0000.json").mock(
@@ -74,6 +90,7 @@ async def test_unauth_returns_generic_score(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     with respx.mock(base_url=food_service.OFF_BASE) as router:
         router.get("/api/v2/product/3017620422003.json").mock(
@@ -87,7 +104,7 @@ async def test_unauth_returns_generic_score(
     # Generic Nutella: base 20 (E) + NOVA-4 -20 = 0
     assert body["score"] == 0
     assert body["score_label"] == "Avoid"
-    assert body["alternatives"] == []  # T1.6 stub
+    assert body["alternatives"] == []  # stubbed via fixture
 
 
 @pytest.mark.asyncio
@@ -95,6 +112,7 @@ async def test_breakdown_sorted_by_abs_impact(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     with respx.mock(base_url=food_service.OFF_BASE) as router:
         router.get("/api/v2/product/3017620422003.json").mock(
@@ -112,6 +130,7 @@ async def test_nutrients_returned(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     with respx.mock(base_url=food_service.OFF_BASE) as router:
         router.get("/api/v2/product/3017620422003.json").mock(
@@ -130,6 +149,7 @@ async def test_greek_yogurt_high_score(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     with respx.mock(base_url=food_service.OFF_BASE) as router:
         router.get("/api/v2/product/0894700010014.json").mock(
@@ -147,6 +167,7 @@ async def test_greek_yogurt_high_score(
 async def test_invalid_token_treated_as_anonymous(
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     """If JWT decoding fails, the user is treated as anonymous (not 401)."""
     from app.main import app
@@ -189,6 +210,7 @@ def _wipe_insights(supabase: Client, barcode: str) -> None:
 async def test_body_impact_populated_on_success(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
+    stub_alternatives: None,
     supabase_admin: Client,
 ) -> None:
     """Cache miss → Claude HTTP mock → response body carries the summary."""
@@ -216,6 +238,7 @@ async def test_body_impact_populated_on_success(
 async def test_body_impact_none_on_anthropic_failure(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
+    stub_alternatives: None,
     supabase_admin: Client,
 ) -> None:
     """Claude returns 5xx → endpoint still 200s with body_impact: null."""
@@ -241,6 +264,7 @@ async def test_body_impact_none_on_anthropic_failure(
 async def test_body_impact_cache_hit_skips_anthropic(
     unauthed_client: httpx.AsyncClient,
     disable_db_cache: None,
+    stub_alternatives: None,
     supabase_admin: Client,
 ) -> None:
     """Pre-populated food_insights row is served without an Anthropic call."""
@@ -281,6 +305,7 @@ async def test_authed_user_with_diabetes_personalized(
     supabase_admin: Client,
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     client, user_id, _token = authed_client
     # Set the user's health_conditions to include diabetes.
@@ -312,6 +337,7 @@ async def test_authed_user_no_conditions_not_personalized(
     authed_client: tuple[httpx.AsyncClient, str, str],
     disable_db_cache: None,
     stub_body_impact: None,
+    stub_alternatives: None,
 ) -> None:
     client, _user_id, _token = authed_client
     # Default profile is created with empty health_conditions.
@@ -323,3 +349,115 @@ async def test_authed_user_no_conditions_not_personalized(
         res = await client.get("/api/food/barcode/0894700010014")
     body = res.json()
     assert body["personalized"] is False
+
+
+# ---------------------------------------------------------------------------
+# T1.6 — alternatives wiring
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_alternatives_populated_when_category_present(
+    unauthed_client: httpx.AsyncClient,
+    disable_db_cache: None,
+    stub_body_impact: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Wires food_service.get_alternatives → FoodResult.alternatives."""
+    from app.models.food import Alternative
+
+    captured: dict[str, Any] = {}
+
+    async def _alts(
+        *,
+        barcode: str,
+        category: str | None,
+        current_score: int,
+        conditions: list[str] | None,
+    ) -> list[Alternative]:
+        captured.update(
+            barcode=barcode,
+            category=category,
+            current_score=current_score,
+            conditions=conditions,
+        )
+        return [
+            Alternative(
+                barcode="3760020507350",
+                name="Almond Butter",
+                brand="Justin's",
+                score=74,
+                image_url="https://img/almonds.jpg",
+                amazon_url="https://www.amazon.com/dp/X?tag=clean-20",
+            ),
+            Alternative(
+                barcode="0123456789012",
+                name="Cashew Butter",
+                brand=None,
+                score=62,
+                image_url=None,
+                amazon_url=None,
+            ),
+        ]
+
+    monkeypatch.setattr(food_service, "get_alternatives", _alts)
+
+    with respx.mock(base_url=food_service.OFF_BASE) as router:
+        router.get("/api/v2/product/3017620422003.json").mock(
+            return_value=httpx.Response(200, json=_load("nutella"))
+        )
+        body = (
+            await unauthed_client.get("/api/food/barcode/3017620422003")
+        ).json()
+
+    # Wiring assertions
+    assert captured["barcode"] == "3017620422003"
+    # Nutella's first categories_tags entry is the broad root.
+    assert isinstance(captured["category"], str) and captured["category"].startswith(
+        "en:"
+    )
+    assert captured["current_score"] == 0
+    assert captured["conditions"] == []
+
+    # Response shape
+    alts = body["alternatives"]
+    assert len(alts) == 2
+    assert alts[0]["barcode"] == "3760020507350"
+    assert alts[0]["score"] == 74
+    assert alts[0]["amazon_url"] == "https://www.amazon.com/dp/X?tag=clean-20"
+    assert alts[1]["amazon_url"] is None  # creds-missing path renders no button
+
+
+@pytest.mark.asyncio
+async def test_alternatives_empty_when_category_missing(
+    unauthed_client: httpx.AsyncClient,
+    disable_db_cache: None,
+    stub_body_impact: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A product with no categories_tags yields no alternatives, no crash."""
+    payload = _load("greek_yogurt")
+    # Strip categories_tags from the cassette so the parsed product has []
+    if "product" in payload and isinstance(payload["product"], dict):
+        payload["product"]["categories_tags"] = []
+
+    captured: dict[str, Any] = {"called": False}
+
+    async def _alts(**kwargs: Any) -> list[Any]:
+        captured["called"] = True
+        captured["category"] = kwargs.get("category")
+        return []
+
+    monkeypatch.setattr(food_service, "get_alternatives", _alts)
+
+    with respx.mock(base_url=food_service.OFF_BASE) as router:
+        router.get("/api/v2/product/0894700010014.json").mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        body = (
+            await unauthed_client.get("/api/food/barcode/0894700010014")
+        ).json()
+
+    assert captured["called"] is True
+    assert captured["category"] is None
+    assert body["alternatives"] == []
