@@ -27,9 +27,12 @@ import httpx
 from cachetools import TTLCache
 
 from app.core.supabase import get_admin_client
-from app.models.food import ProductSummary
+from app.models.food import Alternative
 
 logger = logging.getLogger(__name__)
+
+ALTERNATIVES_MIN_SCORE = 60
+ALTERNATIVES_MAX = 5
 
 OFF_BASE = "https://world.openfoodfacts.org"
 USER_AGENT = "Clean.App/0.1 (https://github.com/getclean/clean-app)"
@@ -332,18 +335,93 @@ async def get_alternatives(
     category: str | None,
     current_score: int,
     conditions: list[str] | None,
-) -> list[ProductSummary]:
-    """Return healthier alternatives. Stub for T1.6.
+) -> list[Alternative]:
+    """Return up to 5 healthier in-category alternatives.
 
-    The actual implementation will:
-      - search the same category
-      - score each candidate with the user's conditions
-      - filter to score >= 60 and score > current_score
-      - rank, dedup against current barcode, and return the top N.
+    Algorithm (per docs/features/alternatives.md FR-6.4):
+      1. Bail out early when ``category`` is missing — we have no axis to
+         search along, so there is nothing to recommend.
+      2. Search Open Food Facts for products in the same ``category`` slug.
+      3. Score each candidate with the user's ``conditions`` so the gate
+         is personalized.
+      4. Keep candidates whose ``score`` is ``>= 60`` AND strictly greater
+         than ``current_score``, excluding the current ``barcode`` itself
+         and dropping name-less or barcode-less rows.
+      5. Sort by score descending; cap at ``ALTERNATIVES_MAX`` (5).
+      6. For each survivor, ask amazon_service for an affiliate link. The
+         amazon_service is best-effort: a ``None`` URL still yields a
+         valid Alternative — the frontend renders the card without an
+         "Order on Amazon" button.
+
+    Failure modes:
+      * OFF search returns nothing → empty list.
+      * OFF API down → ``search_products`` swallows the error and returns
+        ``([], 0)``, which we propagate as an empty list.
+      * Amazon API failure / missing creds → per-product URL is ``None``,
+        the alternative is still returned.
+
+    Args:
+        barcode: the current product's barcode (excluded from results).
+        category: OFF category tag (e.g. ``"en:spreads"``) to search.
+        current_score: the score of the product the user is viewing.
+        conditions: the user's health conditions (used to personalize the
+            candidate scoring so an alternative is "healthier *for them*").
+
+    Returns:
+        A list of ``Alternative`` (length 0..5).
     """
-    # Reference args so linters don't complain; T1.6 will use them all.
-    _ = (barcode, category, current_score, conditions)
-    return []
+    # Lazy import to avoid a circular reference: scoring_service is pure,
+    # but importing it at module load order trips through the larger
+    # services package init.
+    from app.services import amazon_service, scoring_service
+
+    if not category:
+        return []
+
+    products, _total = await search_products(category=category)
+    if not products:
+        return []
+
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for p in products:
+        if not p.get("barcode") or not p.get("name"):
+            continue
+        if p["barcode"] == barcode:
+            continue
+        score, _label, _factors = scoring_service.compute_score(
+            p["nutrients"],
+            p.get("nutri_score"),
+            p.get("nova_group"),
+            conditions=conditions,
+        )
+        if score < ALTERNATIVES_MIN_SCORE:
+            continue
+        if score <= current_score:
+            continue
+        scored.append((score, p))
+
+    # Stable sort by score desc; ties preserve OFF order (a reasonable
+    # popularity proxy since OFF returns most-complete entries first).
+    scored.sort(key=lambda t: -t[0])
+    top = scored[:ALTERNATIVES_MAX]
+
+    alternatives: list[Alternative] = []
+    for score, p in top:
+        query_parts = [p["name"]]
+        if p.get("brand"):
+            query_parts.append(str(p["brand"]))
+        amazon_url = await amazon_service.get_affiliate_link(" ".join(query_parts))
+        alternatives.append(
+            Alternative(
+                barcode=str(p["barcode"]),
+                name=str(p["name"]),
+                brand=p.get("brand"),
+                score=score,
+                image_url=p.get("image_url"),
+                amazon_url=amazon_url,
+            )
+        )
+    return alternatives
 
 
 def clear_search_cache() -> None:

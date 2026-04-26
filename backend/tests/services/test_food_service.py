@@ -517,10 +517,12 @@ class TestSearchProducts:
 
 
 # ---------------------------------------------------------------------------
-# get_alternatives stub
+# get_alternatives — no-category fast path. Full coverage lives in
+# tests/services/test_alternatives.py.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_alternatives_stub_returns_empty() -> None:
-    assert await get_alternatives("x", "snacks", 50, ["diabetes"]) == []
+async def test_get_alternatives_returns_empty_when_category_missing() -> None:
+    assert await get_alternatives("x", None, 50, ["diabetes"]) == []
+    assert await get_alternatives("x", "", 50, ["diabetes"]) == []
